@@ -1,93 +1,157 @@
-# Tsn Host
+# TSN Linux Host
 
+Managing **Linux-based Time-Sensitive Networking (TSN) hosts** with the centralized,
+programmable management approach of **Software-Defined Networking (SDN)**.
 
+This project explores bringing SDN-style centralized configuration into TSN
+environments so that Linux TSN end-stations (the *talkers* and *listeners* that
+send and receive data streams) can be configured remotely and respond quickly to
+configuration changes. It uses **NETCONF** for remote configuration, **YANG**
+data models for structured config, **Sysrepo** as the datastore and
+event-handling framework, and **Netopeer2** as the NETCONF server/client.
+
+> Academic project — MSc Computer Science (International), University of Rostock.
+
+---
+
+## Background
+
+- **SDN** separates the network *control plane* from the *data plane*, giving
+  administrators centralized, programmable control of the whole network from a
+  single SDN controller (e.g. via OpenFlow).
+- **TSN** is a suite of IEEE 802.1 standards that add deterministic, low-latency,
+  time-synchronized delivery to standard Ethernet — essential for automotive,
+  industrial automation, and robotics.
+- IEEE 802.1Qcc defines a **fully centralized** TSN architecture split between a
+  Centralized User Configuration (**CUC**) and a Centralized Network
+  Configuration (**CNC**). The CNC configures bridges (and, in this project, the
+  Linux hosts) over a southbound interface using **NETCONF**.
+
+The goal is to bridge SDN's flexibility with TSN's strict timing requirements,
+simplifying configuration and administration of Linux TSN hosts.
+
+See [`project.md`](project.md) for the full project description, task list, and a
+curated set of reference links.
+
+## Technologies
+
+| Area | Tools |
+|------|-------|
+| Config protocol | NETCONF |
+| Data modeling | YANG |
+| Datastore & events | [Sysrepo](https://www.sysrepo.org/) |
+| NETCONF server/client | [Netopeer2](https://github.com/CESNET/netopeer2) |
+| Plugins | [telekom/sysrepo-plugins](https://github.com/telekom/sysrepo-plugins) |
+| Environment | Docker (Ubuntu 24.04 LTS), Linux |
+| Languages | C / C++ |
+
+## Repository structure
+
+```
+.
+├── Dockerfile                # Main build: libyang, Sysrepo, libnetconf2, Netopeer2 (+ plugins)
+├── project.md                # Full project description, background, tasks & references
+├── Event handler/            # Custom Sysrepo event handlers & example plugins
+│   ├── Dockerfile
+│   ├── hello_world_event_handler.c
+│   ├── oven_event_handler.c
+│   ├── example-config.xml
+│   ├── oven-config.xml
+│   ├── ReadMe                # Build/run notes for the event-handler container
+│   └── results/              # Screenshots of plugin/handler output
+└── resources/
+    ├── instructions/         # Linux networking notes (tc qdisc, VLAN interfaces)
+    ├── sysrepoplugins/        # Dockerfile for the telekom sysrepo-plugins setup
+    └── udp/                   # TSN talker/listener test applications
+        ├── send_udp.c         # UDP sender using tc-etf TxTime + SO_TIMESTAMPING
+        ├── rec_udp.c          # UDP receiver with HW/SW timestamping
+        └── README.txt         # Full flag reference and usage examples
+```
 
 ## Getting started
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+The recommended environment is a Docker container, which builds Sysrepo,
+Netopeer2, and their dependencies from source on Ubuntu 24.04.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+```bash
+# Build the image
+docker build -t tsn-host .
 
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://git.informatik.uni-rostock.de/auvtsn/tsnhost.git
-git branch -M main
-git push -uf origin main
+# Run an interactive container
+docker run -it --name tsn-host tsn-host
 ```
 
-## Integrate with your tools
+Inside the container:
 
-- [ ] [Set up project integrations](https://git.informatik.uni-rostock.de/auvtsn/tsnhost/-/settings/integrations)
+```bash
+# Set a root password (required for the Netopeer2 client connection)
+passwd root
 
-## Collaborate with your team
+# Start the NETCONF server, then connect with the client in another shell
+netopeer2-server
+netopeer2-cli
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+# Verify the server is listening on the NETCONF port (830)
+netstat -tulnp | grep 830
+```
 
-## Test and Deploy
+See [`Event handler/ReadMe`](Event%20handler/ReadMe) for the event-handler
+container, where the example-module and oven plugins are pre-installed and ready
+to run (event handlers in `/sysrepo/examples`, example XML configs in `/tmp`).
 
-Use the built-in continuous integration in GitLab.
+## Event handling
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+Configuration changes (defined via YANG models) must be detected and acted on
+promptly to keep TSN behavior deterministic. Two approaches were explored:
 
-***
+1. **Custom Sysrepo event handlers** — subscribe directly to specific YANG
+   modules via the Sysrepo API for full control (see the `hello_world` and
+   `oven` handlers under [`Event handler/`](Event%20handler/)).
+2. **Existing Sysrepo plugins** — reuse the well-tested
+   [telekom/sysrepo-plugins](https://github.com/telekom/sysrepo-plugins)
+   (e.g. `ietf-system-plugin`) for common system/interface/routing config.
 
-# Editing this README
+## TSN talker/listener test apps
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+[`resources/udp/`](resources/udp/) contains UDP test applications used in the TSN
+testbed. `send_udp` periodically transmits timestamped UDP packets using the
+`tc-etf` TxTime feature and `SO_TIMESTAMPING`; `rec_udp` receives them with
+hardware/software timestamps.
 
-## Suggestions for a good README
+```bash
+gcc -pthread -o /usr/local/bin/send_udp send_udp.c -lz
+gcc -pthread -o /usr/local/bin/rec_udp  rec_udp.c  -lz
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+# Example
+send_udp -i t1.42 -I t1 -d t2 -H
+rec_udp  -i t2.42 -I t2 -H
+```
 
-## Name
-Choose a self-explaining name for your project.
+A VLAN device with skb→PCP priority mapping is required. See
+[`resources/udp/README.txt`](resources/udp/README.txt) for the complete flag
+reference and [`resources/instructions/`](resources/instructions/) for VLAN and
+`tc qdisc` setup notes.
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+## Status & known limitations
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+- Some Sysrepo plugins (notably `ietf-system-plugin`) depend on **systemd** and
+  **DBus**, which are not fully available inside Docker. These plugins subscribe
+  to changes successfully but fail when applying system-level changes because
+  they cannot access the DBus service.
+- Full integration of system-dependent plugins likely requires a **VM or bare
+  metal** host where systemd is fully supported.
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+## Future work
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+1. Move from Docker to a VM or dedicated hardware for complete access to systemd
+   and DBus.
+2. Use custom plugins for entirely new configuration, and the telekom
+   sysrepo-plugins for general system/interface/routing configuration.
+3. Test on real TSN-enabled Linux hardware with VLAN interfaces / physical NICs
+   to validate real-time performance and synchronization.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+## Author
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+**Bibin Biju** — MSc Computer Science (International), University of Rostock.
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Originally developed in the university GitLab as part of a team CSI project.

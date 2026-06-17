@@ -1,0 +1,10 @@
+# Project plan
+
+Some tasks to look forward:
+
+- Explore YANG models for TSN
+- Implementing NETCONF protocol for sending and receiving commands related to TSN
+- Dynamic management of configurations.
+- Talker and Listener applications compilation. Configuring virtual network interface in the linux host to simulate TSN packet transmission and reception.
+- Creating TSN testbed for simulation. TSN bridge, talker, listener and controllers.
+- Automating setup process.

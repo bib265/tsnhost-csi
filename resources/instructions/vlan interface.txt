@@ -1,0 +1,33 @@
+Commands for creating a Vlan interface with mapping from skb to pcp priority
+
+###############################################################################
+commands
+
+create vlan device (with egrss skb to pcp map)
+$ ip link add link <inf-name> name <vlan-name> type vlan id <vlan-id> egress-qos-map 0:0 1:1 2:2 3:3 4:4 5:5 6:6 7:7
+example $ ip link add link t1 name t1.42 type vlan id 42 egress-qos-map 0:0 1:1 2:2 3:3 4:4 5:5 6:6 7:7
+
+set vlan up
+$ ip link set <vlan-name>  up
+example $ ip link set t1.42 up
+
+set skb to pcp map (with exists vlan inf)
+$ ip link add link <inf-name> name <vlan-name> type vlan id 42 egress-qos-map 0:0 1:1 2:2 3:3 4:4 5:5 6:6 7:7
+example: $ ip link set t1.42 type vlan egress 0:0 1:1 2:2 3:3 4:4 5:5 6:6 7:7
+
+check prio mapping
+$ cat /proc/net/vlan/<vlan-name> 
+example: /proc/net/vlan/t1.42
+
+###############################################################################
+# Example of t2 for creating routes in the network namespace
+
+ip netns exec "t2" ip route add 192.168.1.5 dev t2.42
+ip netns exec "t2" ip route add 192.168.3.5 dev t2.42
+ip netns exec "t2" ip route add 192.168.4.5 dev t2.42
+ip netns exec "t2" ip route add 192.168.5.5 dev t2.42
+ip netns exec "t2" ip route add 192.168.6.5 dev t2.42
+ip netns exec "t2" ip route add 192.168.1.9 dev t2.42
+ip netns exec "t2" ip route add 192.168.2.9 dev t2.42
+ip netns exec "t2" ip route add 192.168.5.9 dev t2.42
+ip netns exec "t2" ip route add 192.168.6.9 dev t2.42

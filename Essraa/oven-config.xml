@@ -1,0 +1,3 @@
+<oven xmlns="urn:sysrepo:oven">
+  <temperature>200</temperature>
+</oven>

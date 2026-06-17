@@ -1,0 +1,13 @@
+to build Docker image from this docker file 
+1. download all files
+2. put them all in the same directory
+3. use this commad in your terminal to go to the files path "cd /path-to-your-directory"
+4. use this command to build the image   "docker build -t <image-name> ."
+5. use this command to make a new container usng the image you build "docker run -it --name <container-name> <image-name>"
+6. you will find all things set and installed 
+7. event-handlers path "/sysrepo/examples"
+8. xml files path "/tmp"
+9. both example-module and oven plugins installed 
+10. event handlers for both are ready for running directly 
+11. "passwd root" this command is for setting the user for netopeer2 client connection
+12. "netstat -tulnp | grep 830" check if SSH (or Netopeer2) is listening on port 830

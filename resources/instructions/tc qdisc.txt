@@ -1,0 +1,285 @@
+Summary of tc qdisc commands
+
+###############################################################################
+usefull qdisc commands
+
+show all interfaces 
+$ tc qdisc show 
+
+show specific interface
+$ tc qdisc show dev <interface>
+
+flags:  
+-s, -stats, -statistics     output more statistics about packet usage.
+-d, -details                output more detailed information about rates and cell sizes.
+-r, -raw                    output raw hex values for handles.
+-p, -pretty                 for u32 filter, decode offset and mask values to
+                            equivalent filter commands based on TCP/IP.  In JSON
+                            utput, add whitespace to improve readability.
+-j, -json                   Display results in JSON format.
+-br, -brief                 Print only essential data needed to identify the filter
+                            and action (handle, cookie, etc.) and stats. This option
+                            is currently only supported by tc filter show and tc
+                            actions ls commands.
+
+###############################################################################
+classless qdisc 
+
+
+[p|b]fifo   Simplest usable qdisc, pure First In, First Out behaviour.
+            Limited in packets or in bytes.
+
+mqprio      The Multiqueue Priority Qdisc is a simple queuing
+            discipline that allows mapping traffic flows to hardware
+            queue ranges using priorities and a configurable priority
+            to traffic class mapping. A traffic class in this context
+            is a set of contiguous qdisc classes which map 1:1 to a
+            set of hardware exposed queues.
+
+codel       CoDel (pronounced "coddle") is an adaptive "no-knobs"
+            active queue management algorithm (AQM) scheme that was
+            developed to address the shortcomings of RED and its
+            variants.
+
+fq_codel    Fair Queuing Controlled Delay is queuing discipline that
+            combines Fair Queuing with the CoDel AQM scheme. FQ_Codel
+            uses a stochastic model to classify incoming packets into
+            different flows and is used to provide a fair share of the
+            bandwidth to all the flows using the queue. Each such flow
+            is managed by the CoDel queuing discipline. Reordering
+            within a flow is avoided since Codel internally uses a
+            FIFO queue.
+
+pfifo_fast  Standard qdisc for 'Advanced Router' enabled kernels.
+            Consists of a three-band queue which honors Type of
+            Service flags, as well as the priority that may be
+            assigned to a packet.
+            The pfifo_fast qdisc is the automatic default in the absence of a
+            configured qdisc.
+
+taprio  The TAPRIO qdisc implements a simplified version of the
+        scheduling state machine defined by IEEE 802.1Q-2018 Section
+        8.6.9, which allows configuration of a sequence of gate states,
+        where each gate state allows outgoing traffic for a subset
+        (potentially empty) of traffic classes.
+        How traffic is mapped to different hardware queues is similar to
+        mqprio(8) and so the map and queues parameters have the same
+        meaning.
+        The other parameters specify the schedule, and at what point in
+        time it should start (it can behave as the schedule started in
+        the past).
+
+
+###############################################################################
+TC qdisc commands
+
+The following commands are available for qdiscs, classes and
+filter:
+
+add     Add a qdisc, class or filter to a node. For all entities,
+        a parent must be passed, either by passing its ID or by
+        attaching directly to the root of a device.  When creating
+        a qdisc or a filter, it can be named with the handle
+        parameter. A class is named with the classid parameter.
+
+delete  A qdisc can be deleted by specifying its handle, which may
+        also be 'root'. All subclasses and their leaf qdiscs are
+        automatically deleted, as well as any filters attached to
+        them.
+
+change  Some entities can be modified 'in place'. Shares the
+        syntax of 'add', with the exception that the handle cannot
+        be changed and neither can the parent. In other words,
+        change cannot move a node.
+
+replace
+        Performs a nearly atomic remove/add on an existing node
+        id. If the node does not exist yet it is created.
+
+get     Displays a single filter given the interface DEV, qdisc-
+        id, priority, protocol and filter-id.
+
+show    Displays all filters attached to the given interface. A
+        valid parent ID must be passed.
+
+link    Only available for qdiscs and performs a replace where the
+        node must exist already.
+
+###############################################################################
+taprio (https://man7.org/linux/man-pages/man8/tc-taprio.8.html)
+
+PARAMETERS:       
+num_tc      Number of traffic classes to use. Up to 16 classes
+            supported.
+            
+map         The priority to traffic class map. Maps priorities 0..15
+            to a specified traffic class. See mqprio(8) for more
+            details.
+            # Priorities that aren’t assigned a class are mapped to the class 0
+
+
+queues      Provide count and offset of queue range for each traffic
+            class. In the format, count@offset.  Queue ranges for each
+            traffic classes cannot overlap and must be a contiguous
+            range of queues.
+
+base-time   Specifies the instant in nanoseconds, using the reference
+            of clockid, defining the time when the schedule starts. If
+            'base-time' is a time in the past, the schedule will start
+            at base-time + (N * cycle-time)
+            where N is the smallest integer so the resulting time is
+            greater than "now", and "cycle-time" is the sum of all the
+            intervals of the entries in the schedule;
+
+clockid     Specifies the clock to be used by qdisc's internal timer
+            for measuring time and scheduling events. This argument
+            must be omitted when using the full-offload feature (flags
+            0x2), since in that case, the clockid is implicitly
+            /dev/ptpN (where N is given by ethtool -T eth0 | grep 'PTP
+            Hardware Clock' ), and therefore not necessarily
+            synchronized with the system's CLOCK_TAI.
+
+sched-entry There may multiple sched-entry parameters in a single
+            schedule. Each one has the
+            sched-entry <command> <gatemask> <interval>
+            format. The only supported <command> is "S", which means
+            "SetGateStates", following the IEEE 802.1Q-2018 definition
+            (Table 8-7). <gate mask> is a bitmask where each bit is a
+            associated with a traffic class, so bit 0 (the least
+            significant bit) being "on" means that traffic class 0 is
+            "active" for that schedule entry.  <interval> is a time
+            duration, in nanoseconds, that specifies for how long that
+            state defined by <command> and <gate mask> should be held
+            before moving to the next entry.
+
+flags       This is a bit mask which specifies different modes for taprio.
+
+                0x1 Enables the txtime-assist feature. In this mode,
+                    taprio will set the transmit timestamp depending on
+                    the interval in which the packet needs to be
+                    transmitted. It will then utililize the etf(8)
+                    qdisc to sort and transmit the packets at the right
+                    time. The second example can be used as a reference
+                    to configure this mode.
+
+                0x2 Enables the full-offload feature. In this mode,
+                    taprio will pass the gate control list to the NIC
+                    which will execute it cyclically in hardware.  When
+                    using full-offload, there is no need to specify the
+                    clockid argument.
+                    The txtime-assist and full-offload features are
+                    mutually exclusive, i.e.  setting flags to 0x3 is
+                    invalid.
+
+txtime-delay    
+            This parameter is specific to the txtime offload mode. It
+            specifies the maximum time a packet might take to reach
+            the network card from the taprio qdisc. The value should
+            always be greater than the delta specified in the etf(8)
+            qdisc.
+
+example:
+$ sudo tc qdisc replace dev t1 parent root handle 100 taprio \
+    num_tc 4 \
+    map 0 1 2 3 \
+    queues 1@0 1@1 1@2 1@3 \
+    base-time 0 \
+    sched-entry S 00 1000000 \
+    sched-entry S 03 1000000 \
+    clockid CLOCK_TAI \
+    flags 0x1 \
+    txtime-delay 500000 
+
+$ sudo tc qdisc replace dev t1 parent root handle 100 taprio \
+    num_tc 2 \
+    map 0 1 0 0 \
+    queues 1@0 1@1 \
+    base-time 0 \
+    sched-entry S 00 1000000 \
+    sched-entry S 03 200000 \
+    flags 0x1 \
+    txtime-delay 500000 \
+    clockid CLOCK_TAI
+
+sudo tc qdisc replace dev t1 parent root handle 100 taprio \
+    num_tc 2 \
+    map 0 0 0 0 1 1 1 1\
+    queues 1@0 1@1 \
+    base-time 0 \
+    sched-entry S 03 10000000 \
+    clockid CLOCK_TAI \
+    flags 0x1 \
+    txtime-delay 500000 
+
+
+example delete:
+$ tc qdisc del dev t1 parent root handle 100
+
+###############################################################################
+etf (https://man7.org/linux/man-pages/man8/tc-etf.8.html)
+
+clockid     Specifies the clock to be used by qdisc's internal timer
+            for measuring time and scheduling events. The qdisc
+            expects that packets passing through it to be using this
+            same clockid as the reference of their txtime timestamps.
+            It will drop packets coming from sockets that do not
+            comply with that.
+            For more information about time and clocks on Linux,
+            please refer to time(7) and clock_gettime(3).
+
+delta       After enqueueing or dequeueing a packet, the qdisc will
+            schedule its next wake-up time for the next txtime minus
+            this delta value.  This means delta can be used as a fudge
+            factor for the scheduler latency of a system.  This value
+            must be specified in nanoseconds.  The default value is 0
+            nanoseconds.
+
+deadline_mode
+            When deadline_mode is set, the qdisc will handle txtime
+            with a different semantics, changed from a 'strict'
+            transmission time to a deadline.  In practice, this means
+            during the dequeue flow etf(8) will set the txtime of the
+            packet being dequeued to 'now'.  The default is for this
+            option to be disabled.
+
+offload
+            When offload is set, etf(8) will try to configure the
+            network interface so time-based transmission arbitration
+            is enabled in the controller. This feature is commonly
+            referred to as "Launch Time" or "Time-Based Scheduling" by
+            the documentation of network interface controllers.  The
+            default is for this option to be disabled.
+
+skip_sock_check
+            etf(8) currently drops any packet which does not have a
+            socket associated with it or if the socket does not have
+            SO_TXTIME socket option set. But, this will not work if
+            the launchtime is set by another entity inside the kernel
+            (e.g. some other Qdisc). Setting the skip_sock_check will
+            skip checking for a socket associated with the packet.
+
+example queue 1 and 2:
+$ sudo tc qdisc replace dev t1 parent 100:1 etf \
+        clockid CLOCK_TAI \
+        delta 500000 \
+        offload \
+        skip_sock_check
+
+example queue 3 and 4:
+$ sudo tc qdisc replace dev t1 parent 100:3 etf \
+        clockid CLOCK_TAI \
+        delta 500000 \
+        skip_sock_check
+
+###############################################################################
+avamini information:
+
+https://wiki.linuxfoundation.org/realtime/documentation/howto/tools/cyclictest/start
+
+server cant use taprio hardware offload (flags 0x2)
+
+server can use txtime-assist feature  (flags 0x1)
+
+server has 4 tx and rx queues 
+root@avamini02:/home/fk# ls /sys/class/net/t1/queues/
+rx-0  rx-1  rx-2  rx-3  tx-0  tx-1  tx-2  tx-3
